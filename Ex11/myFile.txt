@@ -1,0 +1,16 @@
+dog
+cat
+lion
+elephant
+snake
+bear
+penguin
+snail
+tiger
+wolf
+chicken
+sheep
+cow
+horse
+bee
+
