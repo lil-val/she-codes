@@ -203,10 +203,20 @@ def late_report():
 def report_at_specific_time():
     start_date = ''
     end_date = ''
-    while not re.match(r'(\d{4}-\d{2}-\d{2})', start_date):
+    while start_date == '':
         start_date = input("Please enter start date in the following format YYYY-MM-DD:")
-    while not re.match(r'(\d{4}-\d{2}-\d{2})', end_date):
+        try:
+            datetime.strptime(start_date, '%Y-%m-%d')
+        except ValueError:
+            print('invalid date')
+            start_date = ''
+    while end_date == '':
         end_date = input("Please enter end date in the following format YYYY-MM-DD:")
+        try:
+            datetime.strptime(end_date, '%Y-%m-%d')
+        except ValueError:
+            print('invalid date')
+            end_date = ''
     try:
         with open('employees_attendance.csv', 'r', newline='') as employees_attendance_file:
             reader = csv.DictReader(employees_attendance_file, fieldnames=attendance_fields, dialect='excel')
