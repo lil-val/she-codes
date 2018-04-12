@@ -41,6 +41,7 @@ def get_employees(file_name='employees.csv'):
     employees = {}
     try:
         with open(file_name, 'r', newline='') as employees_file:
+            next(employees_file)
             reader = csv.DictReader(employees_file, fieldnames=employee_fields, dialect='excel')
             for employee in reader:
                 employees[employee['employee_id']] = employee
@@ -120,20 +121,21 @@ def delete_employee():
     del employees[employee_id]
     with open('employees.csv', 'w', newline='') as employees_file:
         writer = csv.DictWriter(employees_file, fieldnames=employee_fields, dialect='excel')
+        writer.writeheader()
         writer.writerows(list(employees.values()))
 
 
 def delete_employees_from_file():
     file_name = input("Please enter the file name you would like to load:")
     employees = get_employees()
-    updated_employees_list = []
-    for employee in employees:
-            if get_employee(employees[employee]['employee_id'], file_name) is None:
-                updated_employees_list.append(employees[employee])
+    employees_to_delete = get_employees(file_name)
+    for employee in employees_to_delete:
+        if employee in employees:
+            del employees[employee]
     with open('employees.csv', 'w', newline='') as employees_file:
         writer = csv.DictWriter(employees_file, fieldnames=employee_fields, dialect='excel')
         writer.writeheader()
-        writer.writerows(updated_employees_list)
+        writer.writerows(list(employees.values()))
 
 
 def mark_attendance():
