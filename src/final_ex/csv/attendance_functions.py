@@ -1,7 +1,6 @@
 # from final_ex.attendance import Employee
 from datetime import datetime, date, timedelta
 import csv
-import re
 
 employee_fields = ['employee_id', 'name', 'age', 'phone']
 attendance_fields = ['employee_id', 'attendance_clock']
