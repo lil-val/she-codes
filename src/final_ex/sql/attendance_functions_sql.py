@@ -1,33 +1,14 @@
-# from final_ex.attendance import Employee
-from datetime import datetime, date, timedelta
+from datetime import datetime
 import csv
 import MySQLdb
 
 db = None
-# db.query('SELECT * FROM employees;')
-# result = db.store_result()  # storing the entire result in python variable
-# print(result.fetch_row(maxrows=0, how=1))  # maxrows=0, present all the table, 0 means unlimited
-
-
 employee_fields = ['employee_id', 'name', 'age', 'phone']
-# attendance_fields = ['record_id', 'employee_id', 'timestamp']
 
 
 def init(hostname, port, user_name, password, scheme):
     global db
     db = MySQLdb.connect(host=hostname, port=port, user=user_name, passwd=password, db=scheme)
-
-#
-# def get_employee_from_file(employee_id, file_name='employees.csv'):
-#     try:
-#         with open(file_name, 'r', newline='') as employees_file:
-#             reader = csv.DictReader(employees_file, fieldnames=employee_fields, dialect='excel')
-#             for employee in reader:
-#                 if employee['employee_id'] == employee_id:
-#                     return employee
-#     except IOError:
-#         print("file is not available")
-#     return None
 
 
 def get_employee_from_db(employee_id):
@@ -106,7 +87,7 @@ def add_employee():
         cursor.execute("INSERT INTO employees (`employee_id`, `name`, `age`, `phone`) "
                        "VALUES (%s, %s, %s, %s);", (employee_id, name, age, phone))
         db.commit()
-    except Exception as e:  # change exception to specific exception
+    except MySQLdb.Error as e:
         db.rollback()
         print(e)
 
@@ -114,19 +95,21 @@ def add_employee():
 def add_employees_from_file():
     file_name = input("Please enter the file name you would like to load:")
     new_employees = get_employees_from_file(file_name)
+    employees_to_add = []
     for employee in new_employees:
         if get_employee_from_db(new_employees[employee]['employee_id']) is None:
-            # add empty list, append each employee, iterate over new employees list in the try, and insert them. commit afterwards.
-            cursor = db.cursor()
-            try:
-                cursor.execute("INSERT INTO employees (`employee_id`, `name`, `age`, `phone`) "
-                               "VALUES (%s, %s, %s, %s);",
-                               (new_employees[employee]['employee_id'], new_employees[employee]['name'],
-                                new_employees[employee]['age'], new_employees[employee]['phone']))
-                db.commit()
-            except Exception as e:  # change exception to specific exception
-                db.rollback()
-                print(e)
+            employees_to_add.append(new_employees[employee])
+        else:
+            print("Employee ID {} already exists".format(employee))
+    cursor = db.cursor()
+    try:
+        for emp in employees_to_add:
+            cursor.execute("INSERT INTO employees (`employee_id`, `name`, `age`, `phone`) VALUES (%s, %s, %s, %s);",
+                           (emp['employee_id'], emp['name'], emp['age'], emp['phone']))
+        db.commit()
+    except MySQLdb.Error as e:
+        db.rollback()
+        print(e)
 
 
 def delete_employee():
@@ -145,7 +128,7 @@ def delete_employee():
     try:
         cursor.execute("DELETE FROM employees WHERE employee_id = %s;", (employee_id,))
         db.commit()
-    except Exception as e:  # change exception to specific exception
+    except MySQLdb.Error as e:
         db.rollback()
         print(e)
 
@@ -153,17 +136,19 @@ def delete_employee():
 def delete_employees_from_file():
     file_name = input("Please enter the file name you would like to load:")
     employees = get_employees_from_db()
-    employees_to_delete = get_employees_from_file(file_name)
-    for employee in employees_to_delete:
-        # add empty list, append each employee, iterate over employees to delete list in the try, and delete them. commit afterwards.
+    employees_from_file = get_employees_from_file(file_name)
+    employees_to_delete = []
+    for employee in employees_from_file:
         if employee in employees:
-            cursor = db.cursor()
-            try:
-                cursor.execute("DELETE FROM employees WHERE employee_id = %s;", (employees[employee]['employee_id'],))
-                db.commit()
-            except Exception as e:
-                db.rollback()
-                print(e)
+            employees_to_delete.append(employees[employee])
+    cursor = db.cursor()
+    try:
+        for emp in employees_to_delete:
+            cursor.execute("DELETE FROM employees WHERE employee_id = %s;", (emp['employee_id'],))
+        db.commit()
+    except MySQLdb.Error as e:
+        db.rollback()
+        print(e)
 
 
 def mark_attendance():
@@ -180,9 +165,9 @@ def mark_attendance():
     cursor = db.cursor()
     try:
         cursor.execute("INSERT INTO employees_attendance (`employee_id`, `timestamp`) "
-                       "VALUES (%s, %s);", (employee_id, datetime.now().strftime('%Y-%m-%d %H:%M:%S')))  # try without the string conversion, use CURTIME() instead of dapython datetime
+                       "VALUES (%s, CURRENT_TIMESTAMP());", (employee_id,))
         db.commit()
-    except Exception as e:  # change exception to specific exception
+    except MySQLdb.Error as e:
         db.rollback()
         print(e)
 
@@ -204,32 +189,31 @@ def employee_report():
         result = cursor.fetchall()
         for line in result:
             print(line['timestamp'])
-    except Exception as e:  # change exception to specific exception
+    except MySQLdb.Error as e:
         print(e)
 
 
 def monthly_report():
     cursor = db.cursor(MySQLdb.cursors.DictCursor)
-    today = date.today()
-    first = today.replace(day=1)
-    last_month = (first - timedelta(days=1)).strftime('%Y-%m')
     try:
-        cursor.execute("SELECT * FROM employees_attendance WHERE cast(timestamp as char) LIKE %s;", (last_month + "%",))  # use between in the SQL query
+        cursor.execute("SELECT * FROM employees_attendance WHERE timestamp BETWEEN DATE_FORMAT(NOW() - INTERVAL 1 "
+                       "MONTH, '%Y-%m-01 00:00:00') AND DATE_FORMAT(LAST_DAY(NOW() - INTERVAL 1 MONTH), "
+                       "'%Y-%m-%d 23:59:59')")
         result = cursor.fetchall()
         for line in result:
             print(line['employee_id'], line['timestamp'])
-    except Exception as e:
+    except MySQLdb.Error as e:
         print(e)
 
 
 def late_report():
     cursor = db.cursor(MySQLdb.cursors.DictCursor)
     try:
-        cursor.execute("SELECT * FROM employees_attendance WHERE date_format(timestamp, '%H:%i:%s') > '09:30:00';")
+        cursor.execute("SELECT * FROM employees_attendance WHERE time(timestamp) > '09:30:00';")
         result = cursor.fetchall()
         for line in result:
             print(line['employee_id'], line['timestamp'])
-    except Exception as e:
+    except MySQLdb.Error as e:
         print(e)
 
 
@@ -253,10 +237,10 @@ def report_at_specific_time():
 
     cursor = db.cursor(MySQLdb.cursors.DictCursor)
     try:
-        cursor.execute("SELECT * FROM employees_attendance WHERE date_format(timestamp, '%%Y-%%m-%%d') "
-                       "BETWEEN %s and %s;", (start_date, end_date,))
+        cursor.execute("SELECT * FROM employees_attendance WHERE date(timestamp) BETWEEN %s and %s;",
+                       (start_date, end_date,))
         result = cursor.fetchall()
         for line in result:
             print(line['employee_id'], line['timestamp'])
-    except Exception as e:
+    except MySQLdb.Error as e:
         print(e)
